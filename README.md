@@ -1,5 +1,7 @@
 # Switex
 
+[中文文档 →](README_CN.md)
+
 **100% local, offline math OCR for macOS — no cloud, no API keys, no data leaves your machine.**
 
 Take a screenshot of any math formula (from a paper, whiteboard, textbook, website) and instantly convert it to LaTeX. The recognized LaTeX is copied directly to your clipboard — ready to paste into Overleaf, Typst, Markdown, or any math editor.
