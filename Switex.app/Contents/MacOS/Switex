@@ -1,0 +1,11 @@
+#!/bin/bash
+# ============================================
+# Switex — 100% Local Math OCR Launcher
+# ============================================
+APP_DIR="$(cd "$(dirname "$0")/../../.." && pwd)"
+BACKEND_DIR="$APP_DIR/backend"
+VENV_PYTHON="$BACKEND_DIR/venv/bin/python"
+GUI_PY="$BACKEND_DIR/gui_app.py"
+
+cd "$BACKEND_DIR"
+"$VENV_PYTHON" "$GUI_PY"
