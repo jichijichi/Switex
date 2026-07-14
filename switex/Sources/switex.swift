@@ -230,7 +230,7 @@ struct ContentView: View {
             Image(systemName: "function")
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundColor(.purple)
-            Text(showHistory ? "History" : "Switex")
+            Text(showHistory ? "历史记录" : "Switex")
                 .font(.system(size: 15, weight: .semibold))
             Spacer()
             if !showHistory {
@@ -255,12 +255,12 @@ struct ContentView: View {
                 Circle()
                     .fill(ocr.isServerConnected ? Color.green : Color.red)
                     .frame(width: 8, height: 8)
-                Text(ocr.isServerConnected ? "Connected" : "Offline")
+                Text(ocr.isServerConnected ? "已连接" : "离线")
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
             } else {
                 Button(action: { ocr.clearHistory() }) {
-                    Text("Clear All")
+                    Text("全部清除")
                         .font(.system(size: 11))
                         .foregroundColor(.secondary)
                 }
@@ -295,7 +295,7 @@ struct ContentView: View {
                     VStack(spacing: 8) {
                         ProgressView()
                             .scaleEffect(0.8)
-                        Text("Recognizing math…")
+                        Text("识别中…")
                             .font(.system(size: 12))
                             .foregroundColor(.secondary)
                     }
@@ -304,7 +304,7 @@ struct ContentView: View {
                         Image(systemName: "photo.on.rectangle.angled")
                             .font(.system(size: 32))
                             .foregroundColor(.secondary.opacity(0.5))
-                        Text("Drag image here or click below")
+                        Text("拖拽图片或点击下方")
                             .font(.system(size: 12))
                             .foregroundColor(.secondary)
                     }
@@ -320,14 +320,14 @@ struct ContentView: View {
             // Action buttons
             HStack(spacing: 8) {
                 Button(action: { ocr.captureScreenshot() }) {
-                    Label("Screenshot", systemImage: "camera.viewfinder")
+                    Label("截图识别", systemImage: "camera.viewfinder")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
 
                 Button(action: { ocr.recognizeFromClipboard() }) {
-                    Label("Clipboard", systemImage: "doc.on.clipboard")
+                    Label("剪贴板", systemImage: "doc.on.clipboard")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
@@ -368,7 +368,7 @@ struct ContentView: View {
 
                     HStack(spacing: 8) {
                         Button(action: { ocr.copyLatexToClipboard() }) {
-                            Label("Copy LaTeX", systemImage: "doc.on.doc")
+                            Label("复制 LaTeX", systemImage: "doc.on.doc")
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.borderedProminent)
@@ -411,10 +411,10 @@ struct ContentView: View {
                     Image(systemName: "clock.badge.questionmark")
                         .font(.system(size: 36))
                         .foregroundColor(.secondary.opacity(0.4))
-                    Text("No history yet")
+                    Text("暂无历史记录")
                         .font(.system(size: 13))
                         .foregroundColor(.secondary)
-                    Text("Recognized formulas will appear here")
+                    Text("识别后的公式在这里显示")
                         .font(.system(size: 11))
                         .foregroundColor(.secondary.opacity(0.7))
                 }
@@ -440,7 +440,7 @@ struct ContentView: View {
 
     var footerView: some View {
         HStack {
-            Text("100% local · No cloud · No API keys")
+            Text("100% 本地 · 无需联网 · 无需 API Key")
                 .font(.system(size: 10))
                 .foregroundColor(.secondary)
             Spacer()
@@ -502,7 +502,7 @@ struct HistoryRow: View {
                     .foregroundColor(.purple)
             }
             .buttonStyle(.plain)
-            .help("Copy LaTeX source")
+            .help("复制 LaTeX 源码")
         }
         .padding(.vertical, 6)
         .padding(.horizontal, 10)
@@ -626,7 +626,7 @@ final class OCRViewModel: ObservableObject {
         do {
             try task.run()
         } catch {
-            errorMessage = "Screenshot failed: \(error.localizedDescription)"
+            errorMessage = "截图失败： \(error.localizedDescription)"
         }
     }
 
@@ -637,7 +637,7 @@ final class OCRViewModel: ObservableObject {
             forClasses: [NSImage.self],
             options: nil
         )?.first as? NSImage else {
-            errorMessage = "No image in clipboard"
+            errorMessage = "剪贴板中没有图片"
             return
         }
 
@@ -674,12 +674,12 @@ final class OCRViewModel: ObservableObject {
                 self?.isProcessing = false
 
                 if let error = error {
-                    self?.errorMessage = "OCR failed: \(error.localizedDescription)"
+                    self?.errorMessage = "识别失败： \(error.localizedDescription)"
                     return
                 }
 
                 guard let responseData = responseData else {
-                    self?.errorMessage = "No response from server"
+                    self?.errorMessage = "后端无响应"
                     return
                 }
 
@@ -689,7 +689,7 @@ final class OCRViewModel: ObservableObject {
                             self?.errorMessage = errorMsg
                         } else if let latex = json["latex"] as? String {
                             self?.latexResult = latex
-                            self?.confidence = json["confidence"] as? Double ?? 0
+                            self?.confidence = json["置信度"] as? Double ?? 0
                             self?.errorMessage = nil
                             // Add to history
                             self?.addToHistory(latex: latex, confidence: self?.confidence ?? 0)
@@ -698,7 +698,7 @@ final class OCRViewModel: ObservableObject {
                         }
                     }
                 } catch {
-                    self?.errorMessage = "Failed to parse response"
+                    self?.errorMessage = "解析失败"
                 }
             }
         }.resume()
