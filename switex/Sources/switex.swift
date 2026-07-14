@@ -649,17 +649,13 @@ final class OCRViewModel: ObservableObject {
         panel.canChooseDirectories = false
         panel.message = "选择包含数学公式的图片文件"
 
-        panel.begin { [weak self] response in
-            guard response == .OK, let url = panel.url else { return }
-            guard let data = try? Data(contentsOf: url),
-                  let image = NSImage(data: data) else {
-                self?.errorMessage = "无法读取图片文件"
-                return
-            }
-            DispatchQueue.main.async {
-                self?.recognizeImage(image, data: data)
-            }
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard let data = try? Data(contentsOf: url),
+              let image = NSImage(data: data) else {
+            errorMessage = "无法读取图片文件"
+            return
         }
+        recognizeImage(image, data: data)
     }
 
     // MARK: - Clipboard
