@@ -326,13 +326,6 @@ struct ContentView: View {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
 
-                Button(action: { ocr.selectImageFile() }) {
-                    Label("File", systemImage: "folder")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-
                 Button(action: { ocr.recognizeFromClipboard() }) {
                     Label("Clipboard", systemImage: "doc.on.clipboard")
                         .frame(maxWidth: .infinity)
@@ -635,27 +628,6 @@ final class OCRViewModel: ObservableObject {
         } catch {
             errorMessage = "Screenshot failed: \(error.localizedDescription)"
         }
-    }
-
-    // MARK: - File Picker
-
-    func selectImageFile() {
-        let panel = NSOpenPanel()
-        panel.allowedContentTypes = [
-            .png, .jpeg, .bmp, .tiff, .heic, .webP,
-            UTType("public.image")!
-        ]
-        panel.allowsMultipleSelection = false
-        panel.canChooseDirectories = false
-        panel.message = "选择包含数学公式的图片文件"
-
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        guard let data = try? Data(contentsOf: url),
-              let image = NSImage(data: data) else {
-            errorMessage = "无法读取图片文件"
-            return
-        }
-        recognizeImage(image, data: data)
     }
 
     // MARK: - Clipboard
