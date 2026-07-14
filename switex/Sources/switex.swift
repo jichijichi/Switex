@@ -641,19 +641,23 @@ final class OCRViewModel: ObservableObject {
 
     func selectImageFile() {
         let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.png, .jpeg, .bmp, .tiff, .heic]
+        panel.allowedContentTypes = [
+            .png, .jpeg, .bmp, .tiff, .heic, .webP,
+            UTType("public.image")!
+        ]
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
+        panel.message = "选择包含数学公式的图片文件"
 
         panel.begin { [weak self] response in
             guard response == .OK, let url = panel.url else { return }
-            if let image = NSImage(contentsOf: url),
-               let tiff = image.tiffRepresentation,
-               let bitmap = NSBitmapImageRep(data: tiff),
-               let data = bitmap.representation(using: .png, properties: [:]) {
-                DispatchQueue.main.async {
-                    self?.recognizeImage(image, data: data)
-                }
+            guard let data = try? Data(contentsOf: url),
+                  let image = NSImage(data: data) else {
+                self?.errorMessage = "无法读取图片文件"
+                return
+            }
+            DispatchQueue.main.async {
+                self?.recognizeImage(image, data: data)
             }
         }
     }
