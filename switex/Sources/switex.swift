@@ -6,6 +6,20 @@
 import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
+import WebKit
+
+// MARK: - History Record
+
+struct HistoryRecord: Identifiable, Codable, Equatable {
+    let id: UUID
+    let latex: String
+    let confidence: Double
+    let timestamp: Date
+
+    static func == (lhs: HistoryRecord, rhs: HistoryRecord) -> Bool {
+        lhs.id == rhs.id
+    }
+}
 
 // MARK: - App Entry Point
 
@@ -38,7 +52,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         popover = NSPopover()
-        popover.contentSize = NSSize(width: 380, height: 520)
+        popover.contentSize = NSSize(width: 420, height: 580)
         popover.behavior = .transient
         popover.contentViewController = NSHostingController(rootView: ContentView())
 
@@ -75,7 +89,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let task = Process()
         let scriptPath = Bundle.main.resourcePath! + "/../../../scripts/start_server.sh"
 
-        // In development, find the scripts relative to the project
         let devPath = NSString(string: scriptPath).resolvingSymlinksInPath
         task.executableURL = URL(fileURLWithPath: "/bin/bash")
         task.arguments = [devPath]
@@ -121,37 +134,139 @@ final class EventMonitor {
     }
 }
 
+// MARK: - LaTeX Formula Renderer (WKWebView + KaTeX)
+
+struct FormulaRenderer: NSViewRepresentable {
+    let latex: String
+    let fontSize: CGFloat
+
+    init(latex: String, fontSize: CGFloat = 18) {
+        self.latex = latex
+        self.fontSize = fontSize
+    }
+
+    func makeNSView(context: Context) -> WKWebView {
+        let config = WKWebViewConfiguration()
+        config.preferences.setValue(false, forKey: "developerExtrasEnabled")
+        let webView = WKWebView(frame: .zero, configuration: config)
+        webView.setValue(false, forKey: "drawsBackground")
+        webView.isUserInteractionEnabled = false
+        return webView
+    }
+
+    func updateNSView(_ webView: WKWebView, context: Context) {
+        let escaped = latex
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "`", with: "\\`")
+            .replacingOccurrences(of: "$", with: "\\$")
+        let html = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+        <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+        <style>
+        body {
+            margin: 0; padding: 0;
+            display: flex; align-items: center; justify-content: center;
+            min-height: 100vh;
+            font-size: \(fontSize)px;
+            background: transparent;
+        }
+        </style>
+        </head>
+        <body>
+        <div id="formula"></div>
+        <script>
+        try {
+            katex.render("\(escaped)", document.getElementById("formula"), {
+                displayMode: true,
+                throwOnError: false
+            });
+        } catch(e) {
+            document.getElementById("formula").textContent = "\(escaped)";
+        }
+        </script>
+        </body>
+        </html>
+        """
+        webView.loadHTMLString(html, baseURL: nil)
+    }
+}
+
 // MARK: - Main Content View
 
 struct ContentView: View {
     @StateObject private var ocr = OCRViewModel()
+    @State private var showHistory = false
 
     var body: some View {
         VStack(spacing: 0) {
             headerView
             Divider()
-            mainContent
+            if showHistory {
+                historyView
+            } else {
+                mainContent
+            }
             Divider()
             footerView
         }
-        .frame(width: 380)
+        .frame(width: 420)
         .background(Color(nsColor: .controlBackgroundColor))
     }
 
     var headerView: some View {
         HStack {
+            if showHistory {
+                Button(action: { showHistory = false }) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.purple)
+                }
+                .buttonStyle(.plain)
+            }
             Image(systemName: "function")
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundColor(.purple)
-            Text("Switex")
+            Text(showHistory ? "History" : "Switex")
                 .font(.system(size: 15, weight: .semibold))
             Spacer()
-            Circle()
-                .fill(ocr.isServerConnected ? Color.green : Color.red)
-                .frame(width: 8, height: 8)
-            Text(ocr.isServerConnected ? "Connected" : "Offline")
-                .font(.system(size: 11))
-                .foregroundColor(.secondary)
+            if !showHistory {
+                Button(action: { showHistory = true }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "clock.arrow.circlepath")
+                            .font(.system(size: 12))
+                        if !ocr.history.isEmpty {
+                            Text("\(ocr.history.count)")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 2)
+                                .background(Capsule().fill(Color.purple))
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
+                .padding(.trailing, 2)
+            }
+            if !showHistory {
+                Circle()
+                    .fill(ocr.isServerConnected ? Color.green : Color.red)
+                    .frame(width: 8, height: 8)
+                Text(ocr.isServerConnected ? "Connected" : "Offline")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+            } else {
+                Button(action: { ocr.clearHistory() }) {
+                    Text("Clear All")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+                .disabled(ocr.history.isEmpty)
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
@@ -204,7 +319,6 @@ struct ContentView: View {
 
             // Action buttons
             HStack(spacing: 8) {
-                // Screenshot button
                 Button(action: { ocr.captureScreenshot() }) {
                     Label("Screenshot", systemImage: "camera.viewfinder")
                         .frame(maxWidth: .infinity)
@@ -212,7 +326,6 @@ struct ContentView: View {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
 
-                // File picker button
                 Button(action: { ocr.selectImageFile() }) {
                     Label("File", systemImage: "folder")
                         .frame(maxWidth: .infinity)
@@ -220,7 +333,6 @@ struct ContentView: View {
                 .buttonStyle(.bordered)
                 .controlSize(.small)
 
-                // Clipboard button
                 Button(action: { ocr.recognizeFromClipboard() }) {
                     Label("Clipboard", systemImage: "doc.on.clipboard")
                         .frame(maxWidth: .infinity)
@@ -261,7 +373,6 @@ struct ContentView: View {
                             .strokeBorder(Color.secondary.opacity(0.3))
                     )
 
-                    // Copy buttons
                     HStack(spacing: 8) {
                         Button(action: { ocr.copyLatexToClipboard() }) {
                             Label("Copy LaTeX", systemImage: "doc.on.doc")
@@ -298,6 +409,40 @@ struct ContentView: View {
             Spacer(minLength: 8)
         }
         .padding(.top, 10)
+    }
+
+    var historyView: some View {
+        Group {
+            if ocr.history.isEmpty {
+                VStack(spacing: 10) {
+                    Image(systemName: "clock.badge.questionmark")
+                        .font(.system(size: 36))
+                        .foregroundColor(.secondary.opacity(0.4))
+                    Text("No history yet")
+                        .font(.system(size: 13))
+                        .foregroundColor(.secondary)
+                    Text("Recognized formulas will appear here")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary.opacity(0.7))
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(.vertical, 40)
+            } else {
+                List {
+                    ForEach(ocr.history) { record in
+                        HistoryRow(record: record) {
+                            ocr.copySpecificLatex(record.latex)
+                        }
+                        .listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 12))
+                        .listRowSeparator(.hidden)
+                    }
+                    .onDelete { indexSet in
+                        ocr.deleteHistory(at: indexSet)
+                    }
+                }
+                .listStyle(.plain)
+            }
+        }
     }
 
     var footerView: some View {
@@ -344,6 +489,41 @@ struct ContentView: View {
     }
 }
 
+// MARK: - History Row
+
+struct HistoryRow: View {
+    let record: HistoryRecord
+    let onCopy: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            // Rendered formula preview
+            FormulaRenderer(latex: record.latex, fontSize: 14)
+                .frame(height: 50)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            // Copy button
+            Button(action: onCopy) {
+                Image(systemName: "doc.on.doc")
+                    .font(.system(size: 13))
+                    .foregroundColor(.purple)
+            }
+            .buttonStyle(.plain)
+            .help("Copy LaTeX source")
+        }
+        .padding(.vertical, 6)
+        .padding(.horizontal, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color(nsColor: .controlBackgroundColor))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .strokeBorder(Color.secondary.opacity(0.15))
+        )
+    }
+}
+
 // MARK: - OCR ViewModel
 
 final class OCRViewModel: ObservableObject {
@@ -354,13 +534,63 @@ final class OCRViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var isServerConnected: Bool = false
     @Published var hasClipboardImage: Bool = false
+    @Published var history: [HistoryRecord] = []
 
     private let serverURL = "http://127.0.0.1:8765"
     private var healthCheckTimer: Timer?
+    private let historyKey = "switex_history"
 
     init() {
         startHealthCheck()
+        loadHistory()
     }
+
+    // MARK: - History Persistence
+
+    private func loadHistory() {
+        guard let data = UserDefaults.standard.data(forKey: historyKey),
+              let decoded = try? JSONDecoder().decode([HistoryRecord].self, from: data) else { return }
+        history = decoded
+    }
+
+    private func saveHistory() {
+        guard let data = try? JSONEncoder().encode(history) else { return }
+        UserDefaults.standard.set(data, forKey: historyKey)
+    }
+
+    func addToHistory(latex: String, confidence: Double) {
+        // Deduplicate — don't add the same formula right after itself
+        if let last = history.first, last.latex == latex { return }
+        let record = HistoryRecord(
+            id: UUID(),
+            latex: latex,
+            confidence: confidence,
+            timestamp: Date()
+        )
+        history.insert(record, at: 0)
+        // Keep only last 100 records
+        if history.count > 100 {
+            history = Array(history.prefix(100))
+        }
+        saveHistory()
+    }
+
+    func deleteHistory(at offsets: IndexSet) {
+        history.remove(atOffsets: offsets)
+        saveHistory()
+    }
+
+    func clearHistory() {
+        history.removeAll()
+        saveHistory()
+    }
+
+    func copySpecificLatex(_ latex: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(latex, forType: .string)
+    }
+
+    // MARK: - Health Check
 
     private func startHealthCheck() {
         healthCheckTimer = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in
@@ -378,8 +608,9 @@ final class OCRViewModel: ObservableObject {
         }.resume()
     }
 
+    // MARK: - Screenshot
+
     func captureScreenshot() {
-        // Use macOS screencapture to grab a selection
         let tempDir = NSTemporaryDirectory()
         let tempFile = (tempDir as NSString).appendingPathComponent("switex_screenshot_\(UUID().uuidString).png")
 
@@ -406,6 +637,8 @@ final class OCRViewModel: ObservableObject {
         }
     }
 
+    // MARK: - File Picker
+
     func selectImageFile() {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.png, .jpeg, .bmp, .tiff, .heic]
@@ -425,6 +658,8 @@ final class OCRViewModel: ObservableObject {
         }
     }
 
+    // MARK: - Clipboard
+
     func recognizeFromClipboard() {
         guard let pasteboardImage = NSPasteboard.general.readObjects(
             forClasses: [NSImage.self],
@@ -440,6 +675,8 @@ final class OCRViewModel: ObservableObject {
             recognizeImage(pasteboardImage, data: data)
         }
     }
+
+    // MARK: - OCR
 
     func recognizeImage(_ image: NSImage, data: Data) {
         previewImage = image
@@ -482,6 +719,8 @@ final class OCRViewModel: ObservableObject {
                             self?.latexResult = latex
                             self?.confidence = json["confidence"] as? Double ?? 0
                             self?.errorMessage = nil
+                            // Add to history
+                            self?.addToHistory(latex: latex, confidence: self?.confidence ?? 0)
                         } else if let errorMsg = json["error"] as? String, !errorMsg.isEmpty {
                             self?.errorMessage = errorMsg
                         }
@@ -493,10 +732,11 @@ final class OCRViewModel: ObservableObject {
         }.resume()
     }
 
+    // MARK: - Clipboard Copy
+
     func copyLatexToClipboard() {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(latexResult, forType: .string)
-        // Brief visual feedback handled by the button style change
     }
 
     func copyRenderedToClipboard() {
