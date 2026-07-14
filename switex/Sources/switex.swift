@@ -147,10 +147,10 @@ struct FormulaRenderer: NSViewRepresentable {
 
     func makeNSView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
-        config.preferences.setValue(false, forKey: "developerExtrasEnabled")
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.setValue(false, forKey: "drawsBackground")
-        webView.isUserInteractionEnabled = false
+        // Disable interaction on macOS (no isUserInteractionEnabled)
+        webView.configuration.preferences.setValue(false, forKey: "developerExtrasEnabled")
         return webView
     }
 
